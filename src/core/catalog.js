@@ -42,8 +42,10 @@ function parseProducts(json) {
   });
 }
 
+const TIMEOUT_MS = 20000;
+
 async function fetchJson(url, fetchImpl) {
-  const res = await fetchImpl(url, { headers: { Accept: 'application/json' } });
+  const res = await fetchImpl(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.json();
 }
@@ -59,8 +61,19 @@ async function fetchCatalog({ listId, market = 'US', language = 'en-us', limit =
   return games;
 }
 
+// Concurrent requests for the same list share one fetch.
+const inflight = new Map();
+
 // Cached for cacheHours per list; falls back to a stale cache when offline.
-async function getList(listId, { market, language, cacheHours = 12, limit }, opts = {}) {
+function getList(listId, settings, opts = {}) {
+  const key = `${listId}|${opts.cacheFile || ''}|${opts.force ? 1 : 0}`;
+  if (inflight.has(key)) return inflight.get(key);
+  const p = loadList(listId, settings, opts).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+async function loadList(listId, { market, language, cacheHours = 12, limit }, opts) {
   const file = opts.cacheFile || paths.catalogCacheFile(listId);
   let cached = null;
   try {

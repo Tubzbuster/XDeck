@@ -9,10 +9,11 @@ const { getList, linkCatalogs } = require('../core/catalog');
 const { launchUrl, isAllowedUrl } = require('../core/cloud');
 const { Launcher } = require('../core/launcher');
 const sources = require('../core/sources');
-const { planImport, ImportJob, removeGame, discardPartial } = require('../core/importer');
+const { walk, planImport, checkSupported, ImportJob, removeGame, discardPartial } = require('../core/importer');
 const gameSettings = require('../core/gamesettings');
 const compat = require('../core/compat');
 const steam = require('../core/steam');
+const profile = require('../core/profile');
 const paths = require('../core/paths');
 
 const rawArgs = process.argv.slice(1);
@@ -33,6 +34,15 @@ let launcher;
 let mainWindow = null;
 let cloudWindow = null;
 let importJob = null;
+let xbl = null;
+
+// One OpenXBL client per linked key, so its cache survives between calls.
+function xblClient() {
+  const key = profile.loadKey();
+  if (!key) return null;
+  if (!xbl || xbl.key !== key) xbl = new profile.XblClient({ key });
+  return xbl;
+}
 
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
@@ -194,19 +204,62 @@ function registerIpc() {
     return true;
   });
 
+  // ---------- Xbox profile (OpenXBL) ----------
+  ipcMain.handle('profile:status', () => ({ linked: Boolean(profile.loadKey()) }));
+  ipcMain.handle('profile:link', async (_e, key) => {
+    const trimmed = String(key || '').trim();
+    // Printable ASCII only: the key goes into an HTTP header.
+    if (!/^[\x21-\x7e]{16,256}$/.test(trimmed)) throw new Error('That doesn\'t look like an OpenXBL API key.');
+    const client = new profile.XblClient({ key: trimmed });
+    const account = await client.account({ force: true });
+    profile.saveKey(trimmed);
+    xbl = client;
+    return account;
+  });
+  ipcMain.handle('profile:unlink', () => {
+    profile.clearKey();
+    xbl = null;
+    return true;
+  });
+  ipcMain.handle('profile:get', async (_e, { force } = {}) => {
+    const client = xblClient();
+    if (!client) return null;
+    const [account, titles] = await Promise.all([client.account({ force }), client.titles({ force })]);
+    return { account, titles: titles.slice(0, 48) };
+  });
+  ipcMain.handle('profile:achievements', (_e, titleId) => {
+    const client = xblClient();
+    if (!client) throw new Error('No Xbox profile linked');
+    return client.titleAchievements(titleId);
+  });
+
   ipcMain.handle('compat:get', () => ({ community: compat.loadCommunity(), local: compat.loadLocal() }));
 
   // ---------- import ----------
   ipcMain.handle('import:discover', () => sources.discover(config.import));
   ipcMain.handle('import:mount', (_e, devicePath) => sources.mountPartition(devicePath));
-  ipcMain.handle('import:plan', async (_e, gameDir, destId) => {
-    const dest = await findDestination(destId);
-    return summarizePlan(await planImport(gameDir, dest.dir, { marginGB: config.import.freeSpaceMarginGB }));
+  // Plans an import to every destination with a single walk of the source.
+  ipcMain.handle('import:planAll', async (_e, gameDir) => {
+    const error = checkSupported(gameDir);
+    const devices = await sources.listBlockDevices();
+    const dests = sources.destinations(config.import, devices);
+    const files = error ? [] : await walk(gameDir);
+    const marginGB = config.import.freeSpaceMarginGB;
+    return Promise.all(dests.map(async (dest) => ({
+      dest,
+      plan: summarizePlan(await planImport(gameDir, dest.dir, { marginGB, files })),
+    })));
   });
   ipcMain.handle('import:start', async (_e, gameDir, destId, title) => {
     if (importJob && importJob.state === 'running') throw new Error(`Already importing ${importJob.title}`);
     const dest = await findDestination(destId);
     const plan = await planImport(gameDir, dest.dir, { marginGB: config.import.freeSpaceMarginGB });
+    // Reject here, before a job exists: a job that fails before it starts
+    // emits no events, which left the dashboard showing a stuck progress tile.
+    if (plan.error) throw new Error(plan.error);
+    if (plan.alreadyImported) throw new Error(`${title} is already on ${dest.label}`);
+    if (!plan.enoughSpace) throw new Error(`Not enough free space on ${dest.label}`);
+    if (importJob) importJob.removeAllListeners();
     importJob = new ImportJob(plan, { title });
     for (const evt of ['progress', 'verifying', 'done', 'failed', 'cancelled']) {
       importJob.on(evt, (payload) => send(`import:${evt}`, payload));
@@ -265,7 +318,22 @@ function runSingleGame(id) {
   }
 }
 
+// Only one dashboard: a second launch (e.g. double-pressing Play in Steam)
+// focuses the existing window instead of starting another full app.
+const GOT_LOCK = LAUNCH_ID ? true : app.requestSingleInstanceLock();
+if (!GOT_LOCK) {
+  app.quit();
+} else if (!LAUNCH_ID) {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
 app.whenReady().then(() => {
+  if (!GOT_LOCK) return;
   config = loadConfig();
   launcher = new Launcher(config.local.proton);
   launcher.on('started', (info) => send('game:started', info));
@@ -287,6 +355,23 @@ app.whenReady().then(() => {
   registerIpc();
   createMainWindow();
 });
+
+// app.quit() (the dashboard's "exit") skips window-all-closed, so cleanup
+// lives here: never leave a detached game process group or a copy running.
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (importJob) importJob.cancel();
+  if (quitting || !launcher || !launcher.running) return;
+  event.preventDefault();
+  quitting = true;
+  launcher.stopAndWait().finally(() => app.quit());
+});
+
+// Steam's "Exit game" sends SIGTERM, which would otherwise exit immediately
+// and skip before-quit. Route it through the same cleanup.
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => app.quit());
+}
 
 app.on('window-all-closed', () => {
   if (launcher && launcher.running) launcher.stop();

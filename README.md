@@ -8,7 +8,7 @@
   \/   \/___/ \____/ \____/\_| \_/
 ================================================================================
   Platform ..... Steam Deck (SteamOS 3.x, Gaming Mode)
-  Version ...... 0.2.1 (pre-alpha, extremely work in progress)
+  Version ...... 0.3.0 (pre-alpha, extremely work in progress)
   Author ....... tubzbuster & XDeck contributors
   License ...... MIT (see LICENSE and DISCLAIMER.md)
   Updated ...... 2026-10-14
@@ -28,7 +28,7 @@
   [XD03] ........ Installation
   [XD04] ........ Controls
   [XD05] ........ Getting PC Game Pass Games Onto Your Deck
-  [XD06] ........ Configuration
+  [XD06] ........ Configuration (+ Xbox Profile)
   [XD07] ........ For Developers
   [XD08] ........ Disclaimer & Legal
   [XD09] ........ Credits
@@ -40,6 +40,16 @@
 [XD00]                         VERSION HISTORY
 ================================================================================
 ```
+
+**v0.3.0 (2026-10-14)**: New "profile" section: gamertag, gamerpic,
+gamerscore, recently played games and per-game achievements via OpenXBL.
+Stability pass:
+- game logs are capped
+- games are always stopped when XDeck exits
+- stuck import tiles are fixed
+- catalog requests time out
+- tile art far off screen is unloaded
+- duplicate launches focus the open window
 
 **v0.2.1 (2026-10-14)**: Cloud streaming stays the way to play cloud-only
 titles: they're now labelled `CLOUD ONLY`, with a filter in "cloud games".
@@ -104,7 +114,8 @@ the real app on Linux is still the long-term dream; see
   GDK titles needing Gaming Services licence [BROKEN]     no Linux support
   Running the Windows Xbox app itself        [NOT POSSIBLE YET]
   Downloading games directly on the Deck     [NOT POSSIBLE]  see [XD05]
-  Achievements / friends / party chat        [TODO]
+  Xbox profile, gamerscore, achievements     [WORKING]*   *needs a free xbl.io key
+  Friends / party chat                       [TODO]
 ```
 
 ```text
@@ -228,6 +239,21 @@ Override any key in `~/.config/xdeck/config.json`:
   "local": { "proton": { "protonPath": "~/.steam/steam/compatibilitytools.d/GE-Proton9-20" } } }
 ```
 
+**Xbox profile (gamerscore and achievements).** The "profile" section uses
+[OpenXBL](https://xbl.io), a free third-party Xbox Live API:
+
+```text
+  1. On your phone or PC, go to xbl.io and sign in with your Microsoft account.
+  2. Copy your personal API key.
+  3. XDeck > profile > "link your xbox profile" > paste it.
+     (Gaming Mode: STEAM + X opens the on-screen keyboard.)
+```
+
+The key is stored only on your Deck, in `~/.config/xdeck/openxbl.key`
+(owner-only permissions), and is only ever sent to xbl.io. Profile data is
+cached for 10 minutes, because OpenXBL's free tier is rate limited. To remove
+the key, use profile > your gamertag > "unlink profile".
+
 ```text
 ================================================================================
 [XD07]                          FOR DEVELOPERS
@@ -270,6 +296,7 @@ Read the full text in [DISCLAIMER.md](DISCLAIMER.md).
 ================================================================================
   * Valve & the Proton team ............ for making Linux gaming real
   * Open Wine Components (umu-launcher) . for Proton outside of Steam
+  * OpenXBL (xbl.io) ................... for an Xbox Live API mere mortals can use
   * The Wine, DXVK & VKD3D-Proton folks . the true heroes
   * GameFAQs FAQ writers of the 2000s ... for the vibes
 ================================================================================

@@ -41,7 +41,22 @@ export const mockApi = {
     partitions: [{ path: '/dev/nvme0n1p4', label: 'Windows', fstype: 'ntfs', size: 200 * GB, locked: false }],
   }),
   mountPartition: async () => '/run/media/deck/Windows',
-  planImport: async (dir, destId) => ({ totalBytes: 24 * GB, fileCount: 1832, free: destId === 'internal' ? 180 * GB : 12 * GB, enoughSpace: destId === 'internal', alreadyImported: false, resumableBytes: 0 }),
+  planImportAll: async () => (await mockApi.discoverImports()).destinations.map((dest) => ({
+    dest,
+    plan: { totalBytes: 24 * GB, fileCount: 1832, free: dest.free, enoughSpace: dest.id === 'internal', alreadyImported: false, resumableBytes: 0 },
+  })),
+  profileStatus: async () => ({ linked: true }),
+  linkProfile: async () => ({ gamertag: 'DeckPlayer' }),
+  unlinkProfile: async () => true,
+  getProfile: async () => ({
+    account: { gamertag: 'DeckPlayer', gamerscore: 48210, tier: 'Gold', gamerpic: null },
+    titles: [['Halo Ring', 42, 119, 1250, 4000], ['Forza Lap', 88, 100, 1700, 2000], ['Ori Forest', 12, 50, 210, 1000]]
+      .map(([name, earned, total, gs, tgs], i) => ({ titleId: String(1000 + i), name, image: null, earned, total, gamerscore: gs, totalGamerscore: tgs, percent: Math.round((earned / total) * 100) })),
+  }),
+  getAchievements: async () => [
+    { name: 'First Steps', description: 'Finish the tutorial.', gamerscore: 10, unlocked: true },
+    { name: 'Legend', description: 'Beat the game on the hardest difficulty.', gamerscore: 100, unlocked: false },
+  ],
   startImport: async (dir, destId, title) => {
     let pct = 0;
     const t = setInterval(() => {

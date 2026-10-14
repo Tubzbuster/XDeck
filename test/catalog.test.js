@@ -89,3 +89,17 @@ test('links cloud and PC catalogs and finds cloud-only titles', () => {
   assert.deepEqual(linked.cloud.map((g) => [g.id, g.pcId, g.cloudOnly]), [['C1', 'C1', false], ['C2', 'P2', false], ['C3', null, true]]);
   assert.deepEqual(linked.pc.map((g) => [g.id, g.cloudId]), [['C1', 'C1'], ['P2', 'C2'], ['P4', null]]);
 });
+
+test('concurrent getList calls for the same list share one fetch', async () => {
+  const cacheFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'xdeck-')), 'catalog.json');
+  let calls = 0;
+  const slow = async (url) => {
+    calls++;
+    await new Promise((r) => setTimeout(r, 20));
+    return { ok: true, json: async () => (url.includes('sigls') ? SIGL : PRODUCTS) };
+  };
+  const opts = { cacheFile, fetchImpl: slow, force: true };
+  const [a, b] = await Promise.all([getList('abc', {}, opts), getList('abc', {}, opts)]);
+  assert.deepEqual(a, b);
+  assert.equal(calls, 2, 'one sigl + one products request in total');
+});

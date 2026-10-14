@@ -1,7 +1,7 @@
 {
   "name": "xdeck",
   "productName": "XDeck",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A Steam Deck native, controller-first Xbox 360-style dashboard for Xbox Game Pass: cloud streaming plus local launching through Proton.",
   "main": "src/main/main.js",
   "private": true,

@@ -44,14 +44,14 @@ function checkSupported(gameDir) {
  * Works out what an import would do without copying anything.
  * @returns {Promise<{source, target, partial, files, totalBytes, free, enoughSpace, alreadyImported, error}>}
  */
-async function planImport(gameDir, destDir, { marginGB = 2 } = {}) {
+async function planImport(gameDir, destDir, { marginGB = 2, files: knownFiles = null } = {}) {
   const error = checkSupported(gameDir);
   const name = path.basename(gameDir);
   const target = path.join(destDir, name);
   const partial = path.join(destDir, PARTIAL_PREFIX + name);
   if (error) return { source: gameDir, target, partial, files: [], totalBytes: 0, error };
 
-  const files = await walk(gameDir);
+  const files = knownFiles || await walk(gameDir);
   const totalBytes = files.reduce((n, f) => n + f.size, 0);
   // Bytes already sitting in a partial copy from an earlier, cancelled import.
   let resumable = 0;
@@ -178,4 +178,4 @@ async function discardPartial(plan) {
   if (path.basename(plan.partial).startsWith(PARTIAL_PREFIX)) await fsp.rm(plan.partial, { recursive: true, force: true });
 }
 
-module.exports = { planImport, ImportJob, removeGame, discardPartial, checkSupported, PARTIAL_PREFIX };
+module.exports = { walk, planImport, ImportJob, removeGame, discardPartial, checkSupported, PARTIAL_PREFIX };

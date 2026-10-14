@@ -20,6 +20,7 @@ const state = {
   focus: {},         // pivot id -> tile index
   modal: null,       // { buttons, index }
   playing: null,
+  profile: { linked: false, account: null, titles: [], error: null, loading: false },
 };
 
 const RECENTS_KEY = 'xdeck.recents';
@@ -53,32 +54,40 @@ const dirname = (p) => p.replace(/\/+$/, '').replace(/\/[^/]*$/, '');
 
 // ---------- library lookups ----------
 
-const catalogArt = () => new Map(state.pc.concat(state.cloud).map((g) => [upper(g.storeId), g.tile]));
+// Lookup tables derived from state. Rebuilt once per data change (reindex)
+// instead of being recomputed for each of the ~1000 catalog tiles per render.
+const idx = { art: new Map(), destDirs: new Set(), importable: [], importableByStore: new Map(), localByStore: new Map() };
 
-function destinationDirs() {
-  return new Set(state.imports.destinations.map((d) => d.dir));
+function reindex() {
+  idx.art = new Map();
+  for (const g of state.pc.concat(state.cloud)) if (g.tile) idx.art.set(upper(g.storeId), g.tile);
+  idx.destDirs = new Set(state.imports.destinations.map((d) => d.dir));
+  idx.localByStore = new Map();
+  for (const l of state.local) if (l.storeId && l.exists !== false) idx.localByStore.set(upper(l.storeId), l);
+  const installed = new Set(state.local.filter(onDeck).map((g) => g.id));
+  idx.importable = [];
+  idx.importableByStore = new Map();
+  for (const src of state.imports.sources) {
+    for (const g of src.games) {
+      if (installed.has(g.id)) continue;
+      const entry = { ...g, sourceLabel: src.label, sourceDir: src.dir };
+      idx.importable.push(entry);
+      if (g.storeId && !idx.importableByStore.has(upper(g.storeId))) idx.importableByStore.set(upper(g.storeId), entry);
+    }
+  }
 }
 
 // A local game counts as "on the Deck" if it sits in internal storage or the SD card.
 function onDeck(game) {
-  return game.dir && destinationDirs().has(dirname(game.dir));
+  return Boolean(game.dir) && idx.destDirs.has(dirname(game.dir));
 }
 
-function importableGames() {
-  const installed = new Set(state.local.filter(onDeck).map((g) => g.id));
-  const list = [];
-  for (const src of state.imports.sources) {
-    for (const g of src.games) {
-      if (!installed.has(g.id)) list.push({ ...g, sourceLabel: src.label, sourceDir: src.dir });
-    }
-  }
-  return list;
-}
+const importableGames = () => idx.importable;
 
 function pcStatus(game) {
   const key = upper(game.storeId);
-  const installed = state.local.find((l) => upper(l.storeId) === key && l.exists !== false);
-  const importable = importableGames().find((g) => upper(g.storeId) === key);
+  const installed = idx.localByStore.get(key);
+  const importable = idx.importableByStore.get(key);
   const community = state.compat.community[key] || null;
   const local = state.compat.local[key] || null;
   return { installed, importable, cloud: Boolean(game.cloudId), community, local };
@@ -93,14 +102,14 @@ function compatText({ community, local }) {
 
 // ---------- tile helpers ----------
 
-function artUrl(src, width = 460) {
+function artUrl(src, width = 300) {
   if (!src) return null;
   if (/^https?:/.test(src)) return `${src}?w=${width}`;
   return 'file://' + src.split('/').map(encodeURIComponent).join('/');
 }
 
 function gameTile(game, size = '') {
-  const art = game.tile || game.art || catalogArt().get(upper(game.storeId));
+  const art = game.tile || game.art || idx.art.get(upper(game.storeId));
   const isCloud = game.source === 'cloud';
   const tile = {
     size,
@@ -108,7 +117,7 @@ function gameTile(game, size = '') {
     title: game.title,
     subtitle: isCloud ? cloudSubtitle(game) : game.exists === false ? 'Executable missing' : compatText(pcStatus(game)),
     badge: isCloud ? { text: game.cloudOnly ? 'cloud only' : 'cloud', cls: 'cloud' } : { text: 'on deck', cls: 'local' },
-    image: artUrl(art, size === 'big' ? 900 : 460),
+    image: artUrl(art, size === 'big' ? 900 : 300),
     action: () => (isCloud ? launch(game) : localGameMenu(game)),
   };
   if (!tile.image) tile.glyph = game.title.slice(0, 1);
@@ -117,7 +126,7 @@ function gameTile(game, size = '') {
 
 function cloudSubtitle(game) {
   if (game.cloudOnly) return 'Cloud only: stream it';
-  const onDeckCopy = state.local.find((l) => l.exists !== false && [game.storeId, game.pcId].map(upper).includes(upper(l.storeId)));
+  const onDeckCopy = idx.localByStore.get(upper(game.storeId)) || idx.localByStore.get(upper(game.pcId));
   return onDeckCopy ? 'Cloud · also on this Deck' : 'Cloud · also on PC Game Pass';
 }
 
@@ -181,10 +190,53 @@ const PIVOTS = [
         { color: 'purple', title: 'pc game pass', subtitle: `${state.pc.length} titles`, glyph: '⊞', action: () => goPivot('pc') },
         { color: 'orange', title: 'import games', subtitle: `${importableGames().length} ready to import`, glyph: '⇣', action: () => goPivot('import') },
         { color: 'slate', title: 'settings', glyph: '⚙', action: () => goPivot('settings') },
+        { color: 'green', title: state.profile.account ? state.profile.account.gamertag : 'xbox profile', subtitle: state.profile.account ? `${(state.profile.account.gamerscore || 0).toLocaleString()} G` : 'Link for achievements', glyph: '☺', action: () => goPivot('profile') },
         ...recent.slice(1, 5).map((g) => gameTile(g)),
       ];
       if (state.importJob) tiles.splice(1, 0, importProgressTile());
       return tiles;
+    },
+  },
+  {
+    id: 'profile',
+    title: 'profile',
+    tiles() {
+      const p = state.profile;
+      if (!p.linked) {
+        return [{
+          size: 'big', color: 'green', glyph: '☺', title: 'link your xbox profile',
+          subtitle: 'Show your gamertag, gamerscore and achievements',
+          action: linkProfileFlow,
+        }];
+      }
+      if (!p.account) {
+        return [emptyTile(p.error ? `Profile unavailable: ${p.error}` : 'Loading your Xbox profile…', {
+          action: () => (p.error ? profileMenu() : null),
+        })];
+      }
+      const a = p.account;
+      const earned = p.titles.reduce((n, t) => n + t.earned, 0);
+      return [
+        {
+          size: 'big',
+          color: 'green',
+          title: a.gamertag || 'Xbox profile',
+          subtitle: `${(a.gamerscore || 0).toLocaleString()} G${a.tier ? ` · ${a.tier}` : ''}`,
+          image: a.gamerpic ? `${a.gamerpic}${a.gamerpic.includes('?') ? '&' : '?'}w=600&h=600` : null,
+          glyph: '☺',
+          action: profileMenu,
+        },
+        { color: 'dark-green', title: `${earned.toLocaleString()} achievements`, subtitle: `across ${p.titles.length} recent games`, glyph: '🏆', action: profileMenu },
+        ...p.titles.map((t) => ({
+          color: 'slate',
+          title: t.name,
+          subtitle: `${t.earned}/${t.total} · ${t.gamerscore}/${t.totalGamerscore} G`,
+          image: t.image ? `${t.image}${t.image.includes('?') ? '&' : '?'}w=300&h=300` : null,
+          glyph: t.name.slice(0, 1),
+          progress: t.percent,
+          action: () => showAchievements(t),
+        })),
+      ];
     },
   },
   {
@@ -263,7 +315,7 @@ const PIVOTS = [
           title: g.title,
           subtitle: `From ${g.sourceLabel}`,
           badge: { text: 'import', cls: 'import' },
-          image: artUrl(g.art && g.art.startsWith('/') ? g.art : catalogArt().get(upper(g.storeId))),
+          image: artUrl(g.art || idx.art.get(upper(g.storeId))),
           glyph: g.title.slice(0, 1),
           action: () => importFlow(g),
         });
@@ -288,6 +340,7 @@ const PIVOTS = [
         { color: 'dark-green', title: 'open config folder', glyph: '✎', action: () => api.openPath('config') },
         { color: 'purple', title: 'open logs', glyph: '☰', action: () => api.openPath('logs') },
         { color: 'orange', title: 'installing games help', glyph: '?', action: showInstallHelp },
+        { color: 'green', title: state.profile.linked ? 'xbox profile' : 'link xbox profile', subtitle: 'via OpenXBL (xbl.io)', glyph: '☺', action: () => (state.profile.linked ? profileMenu() : linkProfileFlow()) },
         { color: 'slate', title: 'exit xdeck', glyph: '⏻', action: confirmQuit },
       ];
     },
@@ -358,11 +411,12 @@ function render() {
     panel.className = 'panel' + (i === state.pivot ? ' active' : '');
     const grid = document.createElement('div');
     grid.className = 'grid';
-    // Only the active section is built in full; the others stay light.
-    const tiles = i === state.pivot ? p.tiles() : p.tiles().slice(0, 4);
+    // Only the active section is on screen, so only it gets tiles. This keeps
+    // the DOM to one section (up to ~600 tiles) instead of every catalog.
+    const tiles = i === state.pivot ? p.tiles() : [];
     tiles.forEach((t, ti) => {
       const el = buildTile(t);
-      el.addEventListener('click', () => { state.focus[p.id] = ti; if (i === state.pivot) activate(); else goPivot(i); });
+      el.dataset.index = String(ti);
       if (i === state.pivot) tileEls.push({ el, tile: t });
       grid.appendChild(el);
     });
@@ -400,11 +454,23 @@ function applyFocus(instant = false) {
   if (instant) grid.style.transition = 'none';
   grid.style.transform = `translateX(${-offset}px)`;
   if (instant) requestAnimationFrame(() => { grid.style.transition = ''; });
-  // Lazy-load art for tiles within about two screens of the viewport.
+  updateArt(offset);
+}
+
+// Only tiles within a few screens of the viewport keep their art. Catalogs
+// have ~1000 tiles; decoding all of them would hold hundreds of MB of bitmaps.
+function updateArt(offset) {
   for (const { el } of tileEls) {
-    if (el.dataset.bg && el.offsetLeft > offset - 1400 && el.offsetLeft < offset + 2600) {
-      el.style.backgroundImage = `url("${el.dataset.bg}")`;
-      delete el.dataset.bg;
+    const src = el.dataset.bg;
+    if (!src) continue;
+    const near = el.offsetLeft > offset - 1600 && el.offsetLeft < offset + 2900;
+    const shown = el.dataset.shown === '1';
+    if (near && !shown) {
+      el.style.backgroundImage = `url("${src}")`;
+      el.dataset.shown = '1';
+    } else if (!near && shown) {
+      el.style.backgroundImage = '';
+      el.dataset.shown = '';
     }
   }
 }
@@ -453,7 +519,12 @@ function activate() {
 // Updates the progress tile in place so focus and scrolling stay put.
 function updateProgressTile() {
   const el = document.getElementById('import-progress');
-  if (!el || !state.importJob) return render();
+  if (!state.importJob) return;
+  if (!el) {
+    // Only home and import show the tile; elsewhere there's nothing to update.
+    if (['home', 'import'].includes(PIVOTS[state.pivot].id)) render();
+    return;
+  }
   const t = importProgressTile();
   el.querySelector('.label').firstChild.textContent = t.title;
   el.querySelector('.label small').textContent = t.subtitle;
@@ -462,33 +533,51 @@ function updateProgressTile() {
 
 // ---------- modal ----------
 
-function showModal(title, body, buttons) {
+function showModal(title, body, buttons, opts = {}) {
   $('#modal-title').textContent = title;
-  $('#modal-body').textContent = body;
+  const bodyEl = $('#modal-body');
+  bodyEl.textContent = body;
+  bodyEl.scrollTop = 0;
+  const input = $('#modal-input');
+  input.value = '';
+  input.hidden = !opts.input;
+  if (opts.input) input.placeholder = opts.input.placeholder || '';
   const actions = $('#modal-actions');
   actions.innerHTML = '';
   buttons.forEach((b) => {
     const el = document.createElement('button');
     el.textContent = b.label;
     el.disabled = Boolean(b.disabled);
-    el.addEventListener('click', () => { if (b.disabled) return; closeModal(); if (b.action) b.action(); });
+    el.addEventListener('click', () => {
+      if (b.disabled) return;
+      const value = $('#modal-input').value;
+      closeModal();
+      if (b.action) b.action(value);
+    });
     actions.appendChild(el);
     b.el = el;
   });
   const first = Math.max(0, buttons.findIndex((b) => !b.disabled));
-  state.modal = { buttons, index: first };
+  state.modal = { buttons, index: first, scroll: Boolean(opts.scroll) };
   buttons.forEach((b, i) => b.el.classList.toggle('focused', i === first));
   $('#modal').hidden = false;
+  if (opts.input) input.focus();
 }
 
 function closeModal() {
   state.modal = null;
   $('#modal').hidden = true;
+  // Don't leave typed secrets (the API key) sitting in the DOM.
+  const input = $('#modal-input');
+  input.value = '';
+  input.blur();
 }
 
 function modalInput(action) {
   const m = state.modal;
-  if (action === 'up' || action === 'down') {
+  if (m.scroll && (action === 'up' || action === 'down')) {
+    $('#modal-body').scrollBy({ top: action === 'down' ? 120 : -120, behavior: 'smooth' });
+  } else if (action === 'up' || action === 'down') {
     const step = action === 'down' ? 1 : -1;
     let next = m.index;
     for (let n = 0; n < m.buttons.length; n++) {
@@ -501,9 +590,10 @@ function modalInput(action) {
   } else if (action === 'a') {
     const b = m.buttons[m.index];
     if (b.disabled) return;
+    const value = $('#modal-input').value;
     closeModal();
     sounds.select();
-    if (b.action) b.action();
+    if (b.action) b.action(value);
   } else if (action === 'b') {
     closeModal();
     sounds.back();
@@ -614,7 +704,7 @@ async function importFlow(game) {
   toast(`Measuring ${game.title}…`, 2000);
   let plans;
   try {
-    plans = await Promise.all(dests.map((d) => api.planImport(game.dir, d.id).then((p) => ({ dest: d, plan: p }))));
+    plans = await api.planImportAll(game.dir);
   } catch (err) {
     return showError('import', err);
   }
@@ -657,6 +747,117 @@ async function mountPartition(part) {
   } catch (err) {
     showError('could not mount', err);
   }
+}
+
+// ---------- xbox profile ----------
+
+function updateHeader() {
+  const a = state.profile.account;
+  $('#gamertag').textContent = a && a.gamertag ? a.gamertag : 'Player';
+  const avatar = document.querySelector('.avatar');
+  avatar.style.backgroundImage = a && a.gamerpic ? `url("${a.gamerpic}${a.gamerpic.includes('?') ? '&' : '?'}w=96&h=96")` : '';
+  if (!state.playing) $('#status').textContent = a && a.gamerscore !== null ? `${a.gamerscore.toLocaleString()} G` : 'Steam Deck';
+}
+
+let profileRequest = null;
+
+async function loadProfile(force = false) {
+  if (profileRequest) return profileRequest;
+  const p = state.profile;
+  profileRequest = (async () => {
+    try {
+      p.linked = (await api.profileStatus()).linked;
+      if (!p.linked) {
+        Object.assign(p, { account: null, titles: [], error: null });
+        return;
+      }
+      const data = await api.getProfile({ force });
+      if (data) Object.assign(p, { account: data.account, titles: data.titles, error: null });
+    } catch (err) {
+      p.error = errorText(err);
+    } finally {
+      profileRequest = null;
+      updateHeader();
+      render();
+    }
+  })();
+  return profileRequest;
+}
+
+function linkProfileFlow() {
+  showModal('link xbox profile',
+    '1. On your phone or PC, go to xbl.io and sign in with your Microsoft account.\n' +
+    '2. Copy your personal API key from your xbl.io profile page.\n' +
+    '3. Paste or type it below. In Gaming Mode, press STEAM + X for the keyboard.\n\n' +
+    'The key is stored only on this Deck (~/.config/xdeck/openxbl.key) and is sent only to xbl.io.',
+    [
+      {
+        label: 'link profile',
+        action: async (key) => {
+          if (!key || !key.trim()) return showError('link xbox profile', 'Enter your OpenXBL API key first.');
+          toast('Checking your key…', 2000);
+          try {
+            const account = await api.linkProfile(key);
+            toast(`Signed in as ${account.gamertag || 'your profile'}`);
+            await loadProfile(true);
+          } catch (err) {
+            showError('could not link profile', err);
+          }
+        },
+      },
+      { label: 'cancel' },
+    ],
+    { input: { placeholder: 'OpenXBL API key' } });
+}
+
+function profileMenu() {
+  const p = state.profile;
+  const a = p.account || {};
+  const lines = [
+    a.gamertag && `Gamertag: ${a.gamertag}`,
+    a.gamerscore !== null && a.gamerscore !== undefined && `Gamerscore: ${a.gamerscore.toLocaleString()}`,
+    a.tier && `Account: ${a.tier}`,
+    a.reputation && `Reputation: ${a.reputation}`,
+    a.location && `Location: ${a.location}`,
+    a.bio && `\n${a.bio}`,
+    p.error && `\nLast error: ${p.error}`,
+  ].filter(Boolean);
+  showModal('xbox profile', lines.join('\n') || 'Profile linked.', [
+    { label: 'refresh', action: () => loadProfile(true).then(() => toast('Profile refreshed')) },
+    { label: 'unlink profile', action: confirmUnlink },
+    { label: 'close' },
+  ]);
+}
+
+function confirmUnlink() {
+  showModal('unlink profile', 'Remove the OpenXBL key from this Deck?', [
+    { label: 'keep it' },
+    {
+      label: 'unlink',
+      action: async () => {
+        await api.unlinkProfile();
+        state.profile = { linked: false, account: null, titles: [], error: null, loading: false };
+        updateHeader();
+        render();
+        toast('Profile unlinked');
+      },
+    },
+  ]);
+}
+
+async function showAchievements(title) {
+  toast(`Loading ${title.name} achievements…`, 1500);
+  let list;
+  try {
+    list = await api.getAchievements(title.titleId);
+  } catch (err) {
+    return showError(title.name, err);
+  }
+  const lines = list.length
+    ? list.map((a) => `${a.unlocked ? '✓' : '·'}  ${a.name}  (${a.gamerscore} G)\n     ${a.description}`)
+    : ['No achievements found for this title.'];
+  showModal(title.name, `${title.earned}/${title.total} achievements · ${title.gamerscore}/${title.totalGamerscore} G\n\n${lines.join('\n')}`,
+    [{ label: 'close' }], { scroll: true });
 }
 
 // ---------- help & system ----------
@@ -718,6 +919,7 @@ async function refreshLocal() {
   const [local, compat] = await Promise.allSettled([api.getLocalLibrary(), api.compat()]);
   if (local.status === 'fulfilled') state.local = local.value;
   if (compat.status === 'fulfilled') state.compat = compat.value;
+  reindex();
   render();
 }
 
@@ -725,20 +927,43 @@ async function refreshImports(announce) {
   try {
     state.imports = await api.discoverImports();
   } catch {
-    state.imports = { sources: [], destinations: [], partitions: [] };
+    // Keep the last known sources/destinations rather than wiping them.
   }
+  reindex();
   render();
   if (announce) toast(`${importableGames().length} games ready to import`);
 }
 
-async function refresh(force = false) {
+// One refresh at a time: mashing Y used to start overlapping refreshes that
+// could finish out of order and overwrite newer data with older data.
+let refreshing = null;
+let queued = null; // { force } for one more refresh after the current one
+
+function refresh(force = false) {
+  if (refreshing) {
+    queued = { force: Boolean(force || (queued && queued.force)) };
+    return refreshing;
+  }
+  refreshing = doRefresh(force).finally(() => {
+    refreshing = null;
+    if (queued) {
+      const next = queued;
+      queued = null;
+      refresh(next.force);
+    }
+  });
+  return refreshing;
+}
+
+async function doRefresh(force) {
   const [local, catalogs, imports, compat] = await Promise.allSettled([
     api.getLocalLibrary(),
     api.getCatalogs({ force }),
     api.discoverImports(),
     api.compat(),
+    loadProfile(false),
   ]);
-  state.local = local.status === 'fulfilled' ? local.value : [];
+  if (local.status === 'fulfilled') state.local = local.value;
   if (catalogs.status === 'fulfilled') {
     const c = catalogs.value;
     if (c.cloud.length || !c.cloudError) state.cloud = c.cloud;
@@ -750,6 +975,7 @@ async function refresh(force = false) {
   }
   if (imports.status === 'fulfilled') state.imports = imports.value;
   if (compat.status === 'fulfilled') state.compat = compat.value;
+  reindex();
   render();
   if (force) toast('Libraries refreshed');
 }
@@ -791,7 +1017,7 @@ function bindEvents() {
   });
   api.onGameExited(({ game, code, seconds, logFile }) => {
     state.playing = null;
-    $('#status').textContent = 'Steam Deck';
+    updateHeader();
     if (seconds < 20 && code !== 0) {
       showModal('game closed', `${game.title} exited after ${seconds}s (code ${code}).\n\nIf this is a Game Pass title it may need Gaming Services, which Proton can't provide. Try another Proton version from the game's menu.\n\nLog: ${logFile}`, [{ label: 'ok' }]);
     } else {
@@ -837,6 +1063,14 @@ async function init() {
   render();
   createInput(onAction);
   window.addEventListener('resize', () => applyFocus(true));
+  // One delegated click handler for all tiles (tiles are rebuilt on every render).
+  $('#stage').addEventListener('click', (e) => {
+    const el = e.target.closest('.tile');
+    if (!el || state.modal) return;
+    state.focus[PIVOTS[state.pivot].id] = Number(el.dataset.index);
+    applyFocus();
+    activate();
+  });
   bindEvents();
   await refresh(false);
 }

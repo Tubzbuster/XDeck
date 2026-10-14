@@ -13,6 +13,7 @@ Steam (Gaming Mode / gamescope)
        │    ├─ core/gamesettings.js  per-game Proton version, args, env
        │    ├─ core/compat.js     community compat.json + this Deck's launch history
        │    ├─ core/steam.js      per-game Steam shortcuts (XDeck --launch <id>)
+       │    ├─ core/profile.js    Xbox profile + achievements via OpenXBL (bounded cache)
        │    ├─ core/proton.js     find umu-run / Proton builds, build the command
        │    └─ core/launcher.js   spawn + track the game, per-game logs
        │
@@ -87,6 +88,37 @@ file that runs `XDeck --launch <id>` and passes it to `steamos-add-to-steam`.
 In `--launch` mode XDeck opens no window. It starts the game with the same
 launch resolution and quits when the game exits.
 
+**Xbox profile.** `profile.XblClient` calls `https://api.xbl.io/v2`
+(`/account`, `/achievements`, `/achievements/title/<id>`) with the user's key
+in `X-Authorization`. Only the main process sees the key. Responses are cached
+for 10 minutes in a map capped at 64 entries, and concurrent calls share one
+request. A stale cached value is served on 429/5xx/timeouts. Parsing accepts
+both Xbox Live's `profileUsers[].settings[]` shape and flattened objects.
+
+## Resource management
+
+The dashboard runs for hours inside Gaming Mode, so these limits are
+deliberate:
+
+- **Renderer DOM:** only the active section has tiles; the others stay empty.
+  Clicks go through one delegated listener rather than one per tile.
+- **Images:** tiles more than about two screens from the viewport drop their
+  `background-image`, so decoded bitmaps are bounded however long the
+  catalog is. Catalog art is requested at 300 px for normal tiles.
+- **Re-renders:** import progress updates the progress tile in place. It
+  never rebuilds a section that doesn't show the tile. Derived lookups
+  (`reindex()`) are rebuilt once per data change, not per tile.
+- **Refresh:** only one refresh runs at a time; extra requests queue a single
+  follow-up. Catalog fetches time out after 20 s and concurrent fetches of a
+  list are shared.
+- **Game processes:** stdout/stderr are piped and capped at 16 MB per log, and
+  the rest is drained so the game never blocks. Stopping sends SIGTERM to the
+  whole process group, then SIGKILL after 8 s. `before-quit` waits for the
+  game to stop, because `app.quit()` skips `window-all-closed`.
+- **Imports:** a plan that can't succeed is rejected before a job exists.
+  Listeners from an old job are removed when a new one starts.
+- **Single instance:** a second launch focuses the existing dashboard.
+
 ## Files on the Deck
 
 | Path | Contents |
@@ -95,6 +127,7 @@ launch resolution and quits when the game exits.
 | `~/.config/xdeck/config.json` | user overrides |
 | `~/.config/xdeck/library.json` | manual game entries |
 | `~/.config/xdeck/games/<id>.json` | per-game Proton version, args, env |
+| `~/.config/xdeck/openxbl.key` | OpenXBL API key (mode 0600) |
 | `~/XboxGames/`, `<SD card>/XboxGames/` | imported games |
 | `~/.local/share/xdeck/compat-local.json` | launch results on this Deck |
 | `~/.local/share/xdeck/shortcuts/` | per-game Steam shortcut `.desktop` files |

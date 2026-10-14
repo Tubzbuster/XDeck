@@ -47,6 +47,10 @@ relationship or endorsement.
   licence agreements and policies** of any account, subscription, service or
   game you use with XDeck, including the Microsoft Services Agreement and the
   Steam Subscriber Agreement.
+- The optional Xbox profile feature uses OpenXBL (xbl.io), an independent
+  third-party service with its own terms and privacy policy. Your OpenXBL API
+  key is stored only on your device and sent only to xbl.io. XDeck's authors
+  don't operate OpenXBL and aren't responsible for it.
 - Trademarks, logos, icons and game artwork shown by XDeck aren't included in
   this repository. The Software downloads them from their owners' public
   services onto your own device, for your personal use. They remain the

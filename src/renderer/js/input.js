@@ -45,6 +45,9 @@ export function createInput(onAction) {
   }
 
   window.addEventListener('keydown', (e) => {
+    // Let text fields (e.g. the API key box) receive normal typing.
+    const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    if (typing && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     const action = KEYS[e.key] || KEYS[e.key.toLowerCase()];
     if (!action) return;
     e.preventDefault();

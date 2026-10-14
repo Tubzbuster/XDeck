@@ -268,9 +268,10 @@ npm run dist   # build the AppImage
 ```
 
 **Releasing:** set `version` in `package.json`, add
-`docs/release-notes/v<version>.md`, then push a `v<version>` tag. GitHub
-Actions builds the AppImage, runs the tests and publishes the release with
-the AppImage and `SHA256SUMS.txt` attached.
+`docs/release-notes/v<version>.md`, then push a `v<version>` tag, or run the
+**Release** workflow from the Actions tab with that tag. GitHub Actions builds
+the AppImage, runs the tests and publishes the release with the AppImage and
+`SHA256SUMS.txt` attached.
 
 For how the pieces fit together, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Pull requests are welcome; it's early days, so open an issue first for

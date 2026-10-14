@@ -1,10 +1,16 @@
 name: Release
 
-# Pushing a tag like v0.1.0 builds the AppImage, runs the tests and publishes
-# a GitHub release with the AppImage and its checksum attached.
+# Builds the AppImage, runs the tests and publishes a GitHub release with the
+# AppImage and its checksum attached. Start it either by pushing a tag like
+# v0.1.0, or from the Actions tab ("Run workflow") with the tag to create.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create, e.g. v0.1.0 (must match package.json)'
+        required: true
 
 permissions:
   contents: write
@@ -12,6 +18,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -22,14 +30,18 @@ jobs:
       - run: npm test
       - run: shellcheck scripts/*.sh
       - name: Tag must match package.json version
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+        run: test "v$(node -p "require('./package.json').version")" = "$TAG"
+      - name: Release notes must exist
+        run: test -f "docs/release-notes/$TAG.md"
       - run: npm run dist
       - name: Checksums
         run: cd dist && sha256sum ./*.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
-          name: XDeck ${{ github.ref_name }} (pre-alpha)
-          body_path: docs/release-notes/${{ github.ref_name }}.md
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: XDeck ${{ env.TAG }} (pre-alpha)
+          body_path: docs/release-notes/${{ env.TAG }}.md
           prerelease: true
           files: |
             dist/*.AppImage

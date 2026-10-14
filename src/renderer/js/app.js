@@ -459,17 +459,6 @@ function applyFocus(instant = false) {
 
 // Only tiles within a few screens of the viewport keep their art. Catalogs
 // have ~1000 tiles; decoding all of them would hold hundreds of MB of bitmaps.
-// Chromium still keeps unloaded images in its own caches, which grew without
-// bound while scrolling a catalog back and forth (measured: ~20 MB per pass of
-// the 521-title PC list). Clearing them every so many loads keeps it flat.
-const RELEASE_EVERY_LOADS = 150;
-let loadsSinceRelease = 0;
-
-function releaseImageMemory() {
-  loadsSinceRelease = 0;
-  if (api.releaseMemory) api.releaseMemory();
-}
-
 function updateArt(offset) {
   for (const { el } of tileEls) {
     const src = el.dataset.bg;
@@ -479,13 +468,11 @@ function updateArt(offset) {
     if (near && !shown) {
       el.style.backgroundImage = `url("${src}")`;
       el.dataset.shown = '1';
-      loadsSinceRelease++;
     } else if (!near && shown) {
       el.style.backgroundImage = '';
       el.dataset.shown = '';
     }
   }
-  if (loadsSinceRelease >= RELEASE_EVERY_LOADS) releaseImageMemory();
 }
 
 function moveFocus(dir) {
@@ -516,8 +503,6 @@ function moveFocus(dir) {
 function goPivot(target) {
   const index = typeof target === 'number' ? target : PIVOTS.findIndex((p) => p.id === target);
   if (index < 0 || index >= PIVOTS.length || index === state.pivot) return false;
-  // Leaving a big catalog: drop its images from Chromium's caches.
-  if (['cloud', 'pc'].includes(PIVOTS[state.pivot].id)) releaseImageMemory();
   state.pivot = index;
   render();
   sounds.pivot();

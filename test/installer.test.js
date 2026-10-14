@@ -11,12 +11,18 @@ const ROOT = path.join(__dirname, '..');
 
 async function withHome(fn) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'inst-'));
-  const old = process.env.HOME;
+  // XDG_* (set on CI runners) would point XDeck outside the temporary home.
+  const keys = ['HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys.slice(1)) delete process.env[k];
   process.env.HOME = home;
   try {
     await fn(home);
   } finally {
-    process.env.HOME = old;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 

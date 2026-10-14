@@ -9,8 +9,7 @@ const { once } = require('node:events');
 const { Launcher } = require('../src/core/launcher');
 
 // A stand-in "proton" script: records its arguments and environment, then exits.
-test('launches a game through a Proton build and reports the exit', async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'home-'));
+test('launches a game through a Proton build and reports the exit', () => withHome(async (home) => {
   const protonDir = path.join(home, '.steam', 'steam', 'steamapps', 'common', 'Proton 9.0');
   fs.mkdirSync(protonDir, { recursive: true });
   const record = path.join(home, 'record.txt');
@@ -21,11 +20,7 @@ test('launches a game through a Proton build and reports the exit', async () => 
   fs.mkdirSync(path.dirname(exe));
   fs.writeFileSync(exe, 'MZ');
 
-  const oldHome = process.env.HOME;
-  const oldPath = process.env.PATH;
-  process.env.HOME = home;
-  process.env.PATH = '/usr/bin:/bin'; // make sure no real umu-run is picked up
-  try {
+  {
     const launcher = new Launcher({ preferUmu: false });
     const started = once(launcher, 'started');
     const exited = once(launcher, 'exited');
@@ -44,11 +39,8 @@ test('launches a game through a Proton build and reports the exit', async () => 
     }
     assert.ok(fs.readFileSync(info.logFile, 'utf8').startsWith('# '));
     assert.equal(launcher.running, null);
-  } finally {
-    process.env.HOME = oldHome;
-    process.env.PATH = oldPath;
   }
-});
+}));
 
 function fakeProton(home, script) {
   const protonDir = path.join(home, '.steam', 'steam', 'steamapps', 'common', 'Proton 9.0');
@@ -61,13 +53,19 @@ function fakeProton(home, script) {
 
 async function withHome(fn) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'home-'));
-  const old = [process.env.HOME, process.env.PATH];
+  // XDG_* (set on CI runners) would point XDeck outside the temporary home.
+  const keys = ['HOME', 'PATH', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys.slice(2)) delete process.env[k];
   process.env.HOME = home;
   process.env.PATH = '/usr/bin:/bin';
   try {
     await fn(home);
   } finally {
-    [process.env.HOME, process.env.PATH] = old;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 

@@ -48,10 +48,48 @@ What to expect:
 | Encrypted (non-"advanced management") installs under `WindowsApps` | Can't be read on Linux at all |
 | Any other Windows game you own (GOG, itch, standalone) added to `library.json` | Normal Proton compatibility; check ProtonDB |
 
-To get the files onto the Deck, install the game on a Windows PC with advanced
-management turned on, then copy the `XboxGames/<Game>` folder to `~/XboxGames`
-or an SD card. Owning or licensing a game is your responsibility; XDeck doesn't
-bypass any DRM.
+To get the files onto the Deck, install the game on Windows with advanced
+management turned on, then use XDeck's **import** section. It copies the
+`XboxGames/<Game>` folder from a USB drive, SD card, dual-boot Windows
+partition or network share into internal storage or the SD card. The README
+walks through the steps. Owning or licensing a game is your responsibility;
+XDeck doesn't bypass any DRM.
+
+## Why XDeck can't download Game Pass PC games itself
+
+Game Pass PC packages are encrypted (MSIXVC/XVC). Gaming Services decrypts
+them on Windows using kernel drivers and a licence tied to your account.
+Downloading and decrypting them on Linux would mean circumventing that
+protection, so XDeck deliberately doesn't do it, and won't accept
+contributions that do. With advanced management features on, the Windows
+install is a set of plain files, and copying those is all XDeck does.
+
+## Reporting compatibility (`config/compat.json`)
+
+XDeck shows two kinds of compatibility information on each tile:
+
+- **This Deck:** recorded automatically after every launch. A run counts as
+  `ran` after 2 minutes, and as `failed` if the game exits with an error in
+  under 20 seconds.
+- **Community:** entries in `config/compat.json`, keyed by Microsoft Store
+  product ID (the `StoreId` in `MicrosoftGame.config`, also shown in the
+  catalog). Only add titles you've tested yourself:
+
+```json
+{
+  "titles": {
+    "9XXXXXXXXXXX": {
+      "status": "works",
+      "notes": "Tested on GE-Proton9-20, SteamOS 3.7. 60 fps on low.",
+      "env": { "PROTON_USE_WINED3D": "0" }
+    }
+  }
+}
+```
+
+`status` is one of `works`, `playable` (runs with problems) or `broken`.
+`env` is merged into the launch environment. The user's own per-game settings
+still win over it.
 
 ## Gaming Mode notes
 

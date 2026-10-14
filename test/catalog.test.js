@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseSigl, parseProducts, getCatalog } = require('../src/core/catalog');
+const { parseSigl, parseProducts, getList } = require('../src/core/catalog');
 const { launchUrl, isAllowedUrl } = require('../src/core/cloud');
 const { deepMerge } = require('../src/core/config');
 
@@ -38,13 +38,13 @@ test('parses display catalog products', () => {
   assert.equal(g.source, 'cloud');
 });
 
-test('getCatalog caches results and serves stale cache when offline', async () => {
+test('getList caches results and serves stale cache when offline', async () => {
   const cacheFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'xdeck-')), 'catalog.json');
   const ok = async (url) => ({ ok: true, json: async () => (url.includes('sigls') ? SIGL : PRODUCTS) });
-  const games = await getCatalog({ catalogListId: 'abc' }, { market: 'US', language: 'en-us' }, { cacheFile, fetchImpl: ok });
+  const games = await getList('abc', { market: 'US', language: 'en-us' }, { cacheFile, fetchImpl: ok });
   assert.equal(games.length, 1);
   const offline = async () => { throw new Error('offline'); };
-  const cached = await getCatalog({ catalogListId: 'abc' }, { market: 'US', language: 'en-us' }, { cacheFile, fetchImpl: offline, force: true });
+  const cached = await getList('abc', { market: 'US', language: 'en-us' }, { cacheFile, fetchImpl: offline, force: true });
   assert.deepEqual(cached, games);
 });
 

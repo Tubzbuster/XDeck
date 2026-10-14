@@ -22,11 +22,12 @@ class Launcher extends EventEmitter {
     return proton.detect(this.protonCfg);
   }
 
-  launch(game) {
+  // protonCfg overrides the launcher's default (per-game settings).
+  launch(game, protonCfg = this.protonCfg) {
     if (this.running) throw new Error(`${this.running.game.title} is already running`);
     if (!fs.existsSync(game.exe)) throw new Error(`Executable not found: ${game.exe}`);
 
-    const plan = proton.buildLaunch(game, this.protonCfg, this.detect());
+    const plan = proton.buildLaunch(game, protonCfg, proton.detect(protonCfg));
     fs.mkdirSync(plan.prefix, { recursive: true });
     fs.mkdirSync(paths.logsDir(), { recursive: true });
     const logFile = path.join(paths.logsDir(), `${proton.slug(game.id || game.title)}.log`);

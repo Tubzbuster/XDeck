@@ -75,7 +75,8 @@ function scanXboxGamesDir(root) {
     return games;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    // Hidden folders include in-progress imports (.xdeck-partial-*).
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     const content = path.join(root, entry.name, 'Content');
     const cfgFile = path.join(content, 'MicrosoftGame.config');
     if (!fs.existsSync(cfgFile)) continue;
@@ -87,6 +88,7 @@ function scanXboxGamesDir(root) {
     }
     if (!meta.executable) continue;
     const exe = path.join(content, meta.executable.replace(/\\/g, '/'));
+    const logo = meta.logo ? path.join(content, meta.logo.replace(/\\/g, '/')) : null;
     games.push({
       id: slug(meta.identity || entry.name),
       title: meta.title && !meta.title.startsWith('ms-resource:') ? meta.title : entry.name,
@@ -94,8 +96,9 @@ function scanXboxGamesDir(root) {
       storeId: meta.storeId,
       exe,
       workingDir: path.dirname(exe),
-      art: meta.logo ? path.join(content, meta.logo.replace(/\\/g, '/')) : null,
+      art: logo && fs.existsSync(logo) ? logo : null,
       background: meta.background,
+      dir: path.join(root, entry.name),
       exists: fs.existsSync(exe),
     });
   }

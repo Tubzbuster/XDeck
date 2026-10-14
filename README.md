@@ -8,7 +8,7 @@
   \/   \/___/ \____/ \____/\_| \_/
 ================================================================================
   Platform ..... Steam Deck (SteamOS 3.x, Gaming Mode)
-  Version ...... 0.1.0 (pre-alpha, extremely work in progress)
+  Version ...... 0.2.0 (pre-alpha, extremely work in progress)
   Author ....... tubzbuster & XDeck contributors
   License ...... MIT (see LICENSE and DISCLAIMER.md)
   Updated ...... 2026-10-14
@@ -27,7 +27,7 @@
   [XD02] ........ What Works / What Doesn't
   [XD03] ........ Installation
   [XD04] ........ Controls
-  [XD05] ........ Local Games
+  [XD05] ........ Getting PC Game Pass Games Onto Your Deck
   [XD06] ........ Configuration
   [XD07] ........ For Developers
   [XD08] ........ Disclaimer & Legal
@@ -40,6 +40,12 @@
 [XD00]                         VERSION HISTORY
 ================================================================================
 ```
+
+**v0.2.0 (2026-10-14)**: PC Game Pass catalog with "how can I play this"
+badges. Import XboxGames folders from USB drives, SD cards, a dual-boot Windows
+partition or network shares into internal storage or the SD card, with
+progress, verification and resume. Per-game Proton version, "add to Steam"
+per game, and launch-result history.
 
 **v0.1.0 (2026-10-14)**: First public build. Xbox 360-style dashboard,
 Game Pass cloud catalog, Xbox Cloud Gaming launcher, Proton/umu launcher for
@@ -85,11 +91,14 @@ the real app on Linux is still the long-term dream; see
   Xbox 360-style dashboard + controller nav  [WORKING]
   Game Pass cloud catalog with box art       [WORKING]
   Xbox Cloud Gaming (stream any cloud title) [WORKING]*   *needs Ultimate
+  PC Game Pass catalog + playability badges  [WORKING]
+  Import games from USB / SD / Windows / NAS [WORKING]    resumable
   Local games via Proton / umu-launcher      [PARTIAL]    some titles only
+  Per-game Proton version / Steam shortcut   [WORKING]
   GDK titles needing Gaming Services licence [BROKEN]     no Linux support
   Running the Windows Xbox app itself        [NOT POSSIBLE YET]
+  Downloading games directly on the Deck     [NOT POSSIBLE]  see [XD05]
   Achievements / friends / party chat        [TODO]
-  Downloading/installing Game Pass PC games  [TODO]
 ```
 
 ```text
@@ -134,23 +143,64 @@ the Proton prefixes and settings as well.
 
 ```text
 ================================================================================
-[XD05]                            LOCAL GAMES
+[XD05]           GETTING PC GAME PASS GAMES ONTO YOUR DECK
 ================================================================================
 ```
 
-XDeck scans these folders for `<Game>/Content/MicrosoftGame.config`:
-`~/XboxGames`, `/run/media/*/XboxGames` and `/run/media/deck/*/XboxGames`.
-That's the folder layout the Xbox app creates when "advanced management
-features" is turned on.
+**Why can't the Deck just download them?** Game Pass PC downloads come as
+encrypted packages. Only Gaming Services on Windows can unlock them, using
+Windows kernel drivers and your account's licence. Wine/Proton can't run any
+of that, and decrypting the packages ourselves would mean breaking Microsoft's
+DRM. We won't do that. So Windows does the install, and XDeck does
+everything after it.
 
-You can add any other Windows `.exe` to `~/.config/xdeck/library.json`; see
-[config/library.example.json](config/library.example.json) for the format.
-Each game gets its own Proton prefix and its own launch log under
-`~/.local/share/xdeck/`.
+```text
+  STEP 1 (Windows) ... Xbox app > Settings > General > turn ON
+                       "advanced management features".
+  STEP 2 (Windows) ... Install the game to a USB drive, an SD card, or any
+                       drive. It lands in an XboxGames folder as normal files.
+  STEP 3 (Deck) ...... Plug the drive in, or use any of these:
+                         - a dual-boot Windows partition ("mount" tile)
+                         - a network share mounted in Desktop Mode
+                         - any folder listed in import.extraSources
+  STEP 4 (Deck) ...... XDeck > "import" > pick the game > choose
+                       Internal storage or microSD card.
+  STEP 5 (Deck) ...... "my games" > the game > play, pick a Proton version,
+                       or add it to your Steam library as its own shortcut.
+```
+
+**What the importer does**
+- Copies the whole `XboxGames/<Game>` folder and keeps its layout.
+- Checks free space first, and leaves a 2 GB margin (`import.freeSpaceMarginGB`).
+- Copies into a hidden `.xdeck-partial-*` folder, checks every file's size,
+  then moves the folder into place. Half-copied games never show up in your
+  library.
+- Can be cancelled at any time. Importing the same game again picks up where
+  it stopped.
+- Refuses folders that aren't Xbox app installs, and protected `WindowsApps`
+  installs.
+
+**The "pc game pass" section** lists the whole PC catalog. Each tile has a
+badge: `ON DECK`, `READY TO IMPORT`, `CLOUD` (stream it instead) or
+`WINDOWS INSTALL` (install it on Windows first). It also shows what's known
+about running it under Proton.
+
+**Dual-boot tips:** if Windows uses BitLocker or Device Encryption, Linux
+can't read that drive. Install games to an unencrypted drive instead. If
+mounting fails with an "unclean" or "hibernated" error, turn off Windows
+**Fast Startup** and shut Windows down fully.
+
+**Other games:** any Windows `.exe` can be added to
+`~/.config/xdeck/library.json` (see
+[config/library.example.json](config/library.example.json)). Every game gets
+its own Proton prefix and launch log under `~/.local/share/xdeck/`.
 
 **Heads up:** most first-party Game Pass PC titles check their licence through
-Gaming Services and will refuse to start under Proton. XDeck doesn't bypass
-DRM, and never will.
+Gaming Services and will refuse to start under Proton. XDeck records what
+happened on your Deck, so you'll see "Failed to start on this Deck" or "Ran on
+this Deck" on the tile. Tested a title? Add it to
+[config/compat.json](config/compat.json) via a pull request (format in
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)).
 
 ```text
 ================================================================================

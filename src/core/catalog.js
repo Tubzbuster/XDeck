@@ -59,17 +59,16 @@ async function fetchCatalog({ listId, market = 'US', language = 'en-us', limit =
   return games;
 }
 
-// Cached for catalogCacheHours; falls back to a stale cache when offline.
-async function getCatalog(cloudCfg, { market, language }, opts = {}) {
-  const file = opts.cacheFile || paths.catalogCacheFile();
+// Cached for cacheHours per list; falls back to a stale cache when offline.
+async function getList(listId, { market, language, cacheHours = 12, limit }, opts = {}) {
+  const file = opts.cacheFile || paths.catalogCacheFile(listId);
   let cached = null;
   try {
     cached = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch { /* no cache yet */ }
-  const maxAge = (cloudCfg.catalogCacheHours || 12) * 3600 * 1000;
-  if (cached && !opts.force && Date.now() - cached.fetchedAt < maxAge) return cached.games;
+  if (cached && !opts.force && Date.now() - cached.fetchedAt < cacheHours * 3600 * 1000) return cached.games;
   try {
-    const games = await fetchCatalog({ listId: cloudCfg.catalogListId, market, language, fetchImpl: opts.fetchImpl });
+    const games = await fetchCatalog({ listId, market, language, limit, fetchImpl: opts.fetchImpl });
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify({ fetchedAt: Date.now(), games }));
     return games;
@@ -79,4 +78,4 @@ async function getCatalog(cloudCfg, { market, language }, opts = {}) {
   }
 }
 
-module.exports = { parseSigl, parseProducts, fetchCatalog, getCatalog };
+module.exports = { parseSigl, parseProducts, fetchCatalog, getList };

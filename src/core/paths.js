@@ -35,6 +35,9 @@ module.exports = {
   prefixesDir: () => path.join(dataDir(), 'prefixes'),
   umuDir: () => path.join(dataDir(), 'umu'),
   iconFile: () => path.join(dataDir(), 'icons', 'xdeck.png'),
-  catalogCacheFile: () => path.join(cacheDir(), 'catalog.json'),
+  catalogCacheFile: (listId = 'default') => path.join(cacheDir(), `catalog-${listId}.json`),
+  gameSettingsDir: () => path.join(configDir(), 'games'),
+  compatLocalFile: () => path.join(dataDir(), 'compat-local.json'),
+  shortcutsDir: () => path.join(dataDir(), 'shortcuts'),
   logsDir: () => path.join(dataDir(), 'logs'),
 };

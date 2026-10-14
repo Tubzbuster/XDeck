@@ -9,12 +9,17 @@
     "fullscreen": true
   },
 
+  "catalog": {
+    "cloudListId": "29a81209-df6f-41fd-a528-2ae6b91f719c",
+    "pcListId": "fdd9e2a7-0fee-49f6-ad69-4354098401ff",
+    "pcLimit": 600,
+    "cacheHours": 12
+  },
+
   "cloud": {
     "enabled": true,
     "baseUrl": "https://www.xbox.com",
-    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
-    "catalogListId": "29a81209-df6f-41fd-a528-2ae6b91f719c",
-    "catalogCacheHours": 12
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
   },
 
   "local": {
@@ -34,5 +39,13 @@
         "DXVK_ASYNC": "1"
       }
     }
+  },
+
+  "import": {
+    "internalDir": "~/XboxGames",
+    "sdFolderName": "XboxGames",
+    "mountRoots": ["/run/media", "/media", "/mnt"],
+    "extraSources": [],
+    "freeSpaceMarginGB": 2
   }
 }

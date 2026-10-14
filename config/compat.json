@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "about": "Community compatibility reports for PC Game Pass titles under Proton, keyed by Microsoft Store product ID. Only add titles you have tested yourself. status: works | playable | broken. env is merged into the launch environment. See docs/COMPATIBILITY.md.",
+  "titles": {}
+}

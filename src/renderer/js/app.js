@@ -860,6 +860,42 @@ async function showAchievements(title) {
     [{ label: 'close' }], { scroll: true });
 }
 
+// ---------- first-run install (release AppImage) ----------
+
+async function offerInstall() {
+  let s;
+  try {
+    s = await api.installerStatus();
+  } catch {
+    return;
+  }
+  if (!s.isAppImage || s.runningInstalled) return;
+  showModal(s.installed ? 'update xdeck' : 'install xdeck',
+    s.installed
+      ? 'A copy of XDeck is already installed. Replace it with this version?\n\nYour games, settings and profile are kept.'
+      : 'Install XDeck on this Deck?\n\nThis copies XDeck to ~/Applications, sets up umu-launcher for Proton, uses the Xbox app icon and adds XDeck to your Steam library. No password needed.',
+    [
+      { label: s.installed ? 'update' : 'install', action: runInstall },
+      { label: 'not now' },
+    ]);
+}
+
+async function runInstall() {
+  const off = api.onInstallerStep(({ label, state }) => {
+    if (state === 'running') toast(`${label}…`, 60000);
+  });
+  try {
+    const results = await api.runInstaller();
+    const lines = results.map((r) => `${r.ok ? '✓' : '!'}  ${r.label}${r.ok ? '' : `\n     ${r.detail}`}`);
+    toast('XDeck installed', 3000);
+    showModal('installed', `${lines.join('\n')}\n\nSwitch to Gaming Mode and open XDeck from your Steam library (Non-Steam).`, [{ label: 'ok' }]);
+  } catch (err) {
+    showError('install failed', err);
+  } finally {
+    off();
+  }
+}
+
 // ---------- help & system ----------
 
 function showInstallHelp() {
@@ -1072,6 +1108,7 @@ async function init() {
     activate();
   });
   bindEvents();
+  offerInstall();
   await refresh(false);
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "xdeck",
   "productName": "XDeck",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "description": "A Steam Deck native, controller-first Xbox 360-style dashboard for Xbox Game Pass: cloud streaming plus local launching through Proton.",
   "main": "src/main/main.js",
   "private": true,
@@ -12,8 +12,8 @@
     "dev": "electron . --windowed --devtools",
     "test": "node --test \"test/*.test.js\"",
     "lint:sh": "shellcheck scripts/*.sh",
-    "dist": "electron-builder --linux AppImage --x64",
-    "dist:dir": "electron-builder --linux dir --x64"
+    "dist": "electron-builder --linux AppImage --x64 --publish never",
+    "dist:dir": "electron-builder --linux dir --x64 --publish never"
   },
   "engines": {
     "node": ">=20"

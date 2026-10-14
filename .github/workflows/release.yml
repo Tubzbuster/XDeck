@@ -1,0 +1,36 @@
+name: Release
+
+# Pushing a tag like v0.1.0 builds the AppImage, runs the tests and publishes
+# a GitHub release with the AppImage and its checksum attached.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: shellcheck scripts/*.sh
+      - name: Tag must match package.json version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm run dist
+      - name: Checksums
+        run: cd dist && sha256sum ./*.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: XDeck ${{ github.ref_name }} (pre-alpha)
+          body_path: docs/release-notes/${{ github.ref_name }}.md
+          prerelease: true
+          files: |
+            dist/*.AppImage
+            dist/SHA256SUMS.txt

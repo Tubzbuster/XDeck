@@ -14,6 +14,7 @@ const gameSettings = require('../core/gamesettings');
 const compat = require('../core/compat');
 const steam = require('../core/steam');
 const profile = require('../core/profile');
+const installer = require('../core/installer');
 const paths = require('../core/paths');
 
 const rawArgs = process.argv.slice(1);
@@ -22,6 +23,9 @@ const WINDOWED = argv.has('--windowed');
 const DEVTOOLS = argv.has('--devtools');
 // "--launch <id>" is used by per-game Steam shortcuts: no dashboard, just the game.
 const LAUNCH_ID = rawArgs.includes('--launch') ? rawArgs[rawArgs.indexOf('--launch') + 1] : null;
+// "--install" installs the running AppImage from a terminal without opening the dashboard.
+const INSTALL_ONLY = argv.has('--install');
+const HEADLESS = Boolean(LAUNCH_ID) || INSTALL_ONLY;
 
 // Hardware video decode keeps xCloud streams smooth on the Deck's APU.
 app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoDecodeLinuxGL');
@@ -233,6 +237,10 @@ function registerIpc() {
     return client.titleAchievements(titleId);
   });
 
+  // ---------- self-install (release AppImage) ----------
+  ipcMain.handle('installer:status', () => installer.status(process.env.APPIMAGE || null));
+  ipcMain.handle('installer:run', () => runInstaller((stepInfo) => send('installer:step', stepInfo)));
+
   ipcMain.handle('compat:get', () => ({ community: compat.loadCommunity(), local: compat.loadLocal() }));
 
   // ---------- import ----------
@@ -302,6 +310,30 @@ function registerIpc() {
   ipcMain.on('app:quit', () => app.quit());
 }
 
+function runInstaller(onStep) {
+  return installer.install({
+    appImage: process.env.APPIMAGE,
+    scriptsDir: path.join(process.resourcesPath, 'scripts'),
+    appDir: app.getAppPath(),
+    onStep,
+  });
+}
+
+async function installFromTerminal() {
+  try {
+    const results = await runInstaller(({ label, state, detail }) => {
+      if (state !== 'running') console.log(`${state === 'done' ? '[ok]  ' : '[!!]  '}${label}${detail ? ` - ${detail}` : ''}`);
+    });
+    console.log(results.every((r) => r.ok)
+      ? '\nXDeck is installed. Switch to Gaming Mode and open XDeck from your library.'
+      : '\nXDeck is installed; see the notes above for steps that need attention.');
+    app.exit(0);
+  } catch (err) {
+    console.error(`Install failed: ${err.message}`);
+    app.exit(1);
+  }
+}
+
 function runSingleGame(id) {
   const game = localLibrary().find((g) => g.id === id);
   if (!game) {
@@ -320,10 +352,10 @@ function runSingleGame(id) {
 
 // Only one dashboard: a second launch (e.g. double-pressing Play in Steam)
 // focuses the existing window instead of starting another full app.
-const GOT_LOCK = LAUNCH_ID ? true : app.requestSingleInstanceLock();
+const GOT_LOCK = HEADLESS ? true : app.requestSingleInstanceLock();
 if (!GOT_LOCK) {
   app.quit();
-} else if (!LAUNCH_ID) {
+} else if (!HEADLESS) {
   app.on('second-instance', () => {
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -348,6 +380,10 @@ app.whenReady().then(() => {
     }
   });
 
+  if (INSTALL_ONLY) {
+    installFromTerminal();
+    return;
+  }
   if (LAUNCH_ID) {
     runSingleGame(LAUNCH_ID);
     return;

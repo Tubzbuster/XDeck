@@ -8,7 +8,7 @@
   \/   \/___/ \____/ \____/\_| \_/
 ================================================================================
   Platform ..... Steam Deck (SteamOS 3.x, Gaming Mode)
-  Version ...... 0.3.0 (pre-alpha, extremely work in progress)
+  Version ...... 0.1.0 (pre-alpha, extremely work in progress)
   Author ....... tubzbuster & XDeck contributors
   License ...... MIT (see LICENSE and DISCLAIMER.md)
   Updated ...... 2026-10-14
@@ -41,30 +41,19 @@
 ================================================================================
 ```
 
-**v0.3.0 (2026-10-14)**: New "profile" section: gamertag, gamerpic,
-gamerscore, recently played games and per-game achievements via OpenXBL.
-Stability pass:
-- game logs are capped
-- games are always stopped when XDeck exits
-- stuck import tiles are fixed
-- catalog requests time out
-- tile art far off screen is unloaded
-- duplicate launches focus the open window
+**v0.1.0 (2026-10-14)**: First public pre-alpha
+([release page](https://github.com/tubzbuster/xdeck/releases/tag/v0.1.0)).
+- Xbox 360-style dashboard, fully controller-driven
+- Xbox Cloud Gaming catalog and in-app streaming, with cloud-only titles
+  labelled
+- PC Game Pass catalog with "how can I play this" badges
+- Import of Windows-installed games from USB, SD, a dual-boot partition or a
+  network share
+- Proton/umu launching with per-game Proton versions and Steam shortcuts
+- Xbox profile and achievements via OpenXBL
+- A self-installing AppImage
 
-**v0.2.1 (2026-10-14)**: Cloud streaming stays the way to play cloud-only
-titles: they're now labelled `CLOUD ONLY`, with a filter in "cloud games".
-The full cloud catalog loads (it was capped at 400). PC titles stream using
-their cloud edition's ID.
-
-**v0.2.0 (2026-10-14)**: PC Game Pass catalog with "how can I play this"
-badges. Import XboxGames folders from USB drives, SD cards, a dual-boot Windows
-partition or network shares into internal storage or the SD card, with
-progress, verification and resume. Per-game Proton version, "add to Steam"
-per game, and launch-result history.
-
-**v0.1.0 (2026-10-14)**: First public build. Xbox 360-style dashboard,
-Game Pass cloud catalog, Xbox Cloud Gaming launcher, Proton/umu launcher for
-local games, Steam Deck installer. Expect bugs and rough edges.
+Expect bugs and rough edges.
 
 ```text
 ================================================================================
@@ -124,21 +113,32 @@ the real app on Linux is still the long-term dream; see
 ================================================================================
 ```
 
-Switch to **Desktop Mode** and open Konsole:
+**The easy way (recommended).** Switch to **Desktop Mode**, then:
+
+```text
+  1. Download XDeck-<version>-x86_64.AppImage from the Releases page:
+     https://github.com/tubzbuster/xdeck/releases
+     (It's an AppImage, not a .dmg. .dmg files are for macOS.)
+  2. Dolphin: right-click the file > Properties > Permissions >
+     tick "Is executable".
+  3. Double-click it. XDeck offers to install itself.
+  4. Back in Gaming Mode, open XDeck from your library and set the
+     controller layout to "Gamepad".
+```
+
+The installer copies XDeck to `~/Applications`, installs umu-launcher, uses
+the Xbox app's icon from Microsoft's public Store catalog, creates a desktop
+entry and adds XDeck to Steam. It doesn't need sudo. You can also run it from
+a terminal: `./XDeck-<version>-x86_64.AppImage --install`. To update, download
+the new AppImage and do the same; XDeck offers to replace the installed copy.
+
+**From source:**
 
 ```bash
 git clone https://github.com/tubzbuster/xdeck.git && cd xdeck
 npm ci && npm run dist               # builds dist/XDeck-<version>-x86_64.AppImage
 ./scripts/install-steamdeck.sh       # or pass the path to a downloaded AppImage
 ```
-
-The installer copies the AppImage to `~/Applications` and installs
-umu-launcher. It also downloads the Xbox app's icon from Microsoft's public
-Store catalog onto your Deck, creates a desktop entry, and adds XDeck to Steam.
-It doesn't need sudo.
-
-Back in **Gaming Mode**, launch XDeck from your library and set the
-controller layout to **Gamepad**.
 
 To uninstall, run `./scripts/uninstall-steamdeck.sh`. Add `--purge` to delete
 the Proton prefixes and settings as well.
@@ -266,6 +266,11 @@ npm run dev    # windowed + devtools
 npm test       # unit tests
 npm run dist   # build the AppImage
 ```
+
+**Releasing:** set `version` in `package.json`, add
+`docs/release-notes/v<version>.md`, then push a `v<version>` tag. GitHub
+Actions builds the AppImage, runs the tests and publishes the release with
+the AppImage and `SHA256SUMS.txt` attached.
 
 For how the pieces fit together, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Pull requests are welcome; it's early days, so open an issue first for

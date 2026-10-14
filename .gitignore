@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.AppImage
+*.log
+.DS_Store
+
+# Brand assets fetched on the user's own device at install time; never committed.
+assets/icons/xbox-app-icon.png

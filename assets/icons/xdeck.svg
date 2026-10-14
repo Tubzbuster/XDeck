@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- XDeck's own fallback icon: a slice of the tile dashboard. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3f44"/>
+      <stop offset="1" stop-color="#1e2124"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="72" y="104" width="216" height="304" rx="14" fill="#5dc21e"/>
+  <rect x="304" y="104" width="136" height="144" rx="14" fill="#ffffff"/>
+  <rect x="304" y="264" width="136" height="144" rx="14" fill="#2c87c8"/>
+  <circle cx="180" cy="256" r="56" fill="none" stroke="#ffffff" stroke-width="22"/>
+  <path d="M168 222 L210 256 L168 290 Z" fill="#ffffff"/>
+</svg>

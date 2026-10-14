@@ -1,0 +1,29 @@
+appId: io.github.tubzbuster.xdeck
+productName: XDeck
+artifactName: XDeck-${version}-${arch}.${ext}
+directories:
+  output: dist
+  buildResources: assets
+files:
+  - src/**/*
+  - config/**/*
+  - assets/**/*
+  - package.json
+extraResources:
+  - from: scripts
+    to: scripts
+    filter:
+      - "**/*.sh"
+      - "**/*.py"
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Game
+  icon: assets/icons/xdeck.png
+  executableName: xdeck
+  desktop:
+    Name: XDeck
+    Comment: Xbox Game Pass dashboard for Steam Deck
+    Categories: Game;
+    StartupWMClass: XDeck

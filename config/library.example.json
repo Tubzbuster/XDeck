@@ -1,0 +1,10 @@
+[
+  {
+    "title": "Example Game",
+    "exe": "~/Games/ExampleGame/Game.exe",
+    "args": [],
+    "env": { "PROTON_USE_WINED3D": "0" },
+    "art": "~/Games/ExampleGame/cover.png",
+    "enabled": false
+  }
+]

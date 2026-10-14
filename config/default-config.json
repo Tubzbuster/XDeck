@@ -1,0 +1,38 @@
+{
+  "market": "US",
+  "language": "en-us",
+
+  "ui": {
+    "theme": "xbox360-metro",
+    "startPivot": "home",
+    "sounds": true,
+    "fullscreen": true
+  },
+
+  "cloud": {
+    "enabled": true,
+    "baseUrl": "https://www.xbox.com",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
+    "catalogListId": "29a81209-df6f-41fd-a528-2ae6b91f719c",
+    "catalogCacheHours": 12
+  },
+
+  "local": {
+    "enabled": true,
+    "libraryDirs": [
+      "~/XboxGames",
+      "/run/media/*/XboxGames",
+      "/run/media/deck/*/XboxGames"
+    ],
+    "proton": {
+      "preferUmu": true,
+      "umuPath": null,
+      "protonPath": null,
+      "prefixMode": "per-game",
+      "extraEnv": {
+        "PROTON_ENABLE_NVAPI": "0",
+        "DXVK_ASYNC": "1"
+      }
+    }
+  }
+}

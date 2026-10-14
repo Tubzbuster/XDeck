@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' file: data: https://store-images.s-microsoft.com; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>XDeck</title>
+  <link rel="stylesheet" href="styles/dashboard.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <div class="swirl swirl-a"></div>
+    <div class="swirl swirl-b"></div>
+    <div class="swirl swirl-c"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="profile">
+      <div class="avatar" aria-hidden="true"></div>
+      <div>
+        <div class="gamertag" id="gamertag">Player</div>
+        <div class="status" id="status">Steam Deck</div>
+      </div>
+    </div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <nav class="pivots" id="pivots" aria-label="Sections"></nav>
+
+  <main class="stage" id="stage"></main>
+
+  <footer class="hints">
+    <span class="hint"><i class="btn btn-a">A</i> select</span>
+    <span class="hint"><i class="btn btn-b">B</i> back</span>
+    <span class="hint"><i class="btn btn-y">Y</i> refresh</span>
+    <span class="hint"><i class="btn btn-bumper">LB</i><i class="btn btn-bumper">RB</i> switch</span>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <h2 id="modal-title"></h2>
+      <p id="modal-body"></p>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

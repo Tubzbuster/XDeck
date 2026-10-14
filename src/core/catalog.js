@@ -78,4 +78,43 @@ async function getList(listId, { market, language, cacheHours = 12, limit }, opt
   }
 }
 
-module.exports = { parseSigl, parseProducts, fetchCatalog, getList };
+// PC and cloud (console) editions of the same game often have different
+// product IDs, so titles are compared with edition suffixes stripped.
+function normalizeTitle(title) {
+  return String(title || '').toLowerCase()
+    .replace(/[\u2122\u00ae\u00a9]/g, '')
+    .replace(/\((pc|windows|game preview)\)/g, ' ')
+    .replace(/\s[-\u2013:]\s*(windows|pc|xbox one edition|xbox series x\|s|for windows 10|windows edition|pc edition)$/g, ' ')
+    .replace(/\b(for windows 10|windows 10 edition|windows edition|pc edition|console edition|xbox one edition|xbox series x\|s|cross-gen bundle)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Cross-links the two catalogs. Cloud entries get pcId (null = cloud only),
+ * PC entries get cloudId (the ID to stream with, null = not in the cloud).
+ */
+function linkCatalogs(cloud, pc) {
+  const byId = (list) => new Map(list.map((g) => [g.id, g]));
+  const byTitle = (list) => {
+    const m = new Map();
+    for (const g of list) if (!m.has(normalizeTitle(g.title))) m.set(normalizeTitle(g.title), g);
+    return m;
+  };
+  const pcById = byId(pc);
+  const pcByTitle = byTitle(pc);
+  const cloudById = byId(cloud);
+  const cloudByTitle = byTitle(cloud);
+  return {
+    cloud: cloud.map((g) => {
+      const match = pcById.get(g.id) || pcByTitle.get(normalizeTitle(g.title));
+      return { ...g, pcId: match ? match.id : null, cloudOnly: !match };
+    }),
+    pc: pc.map((g) => {
+      const match = cloudById.get(g.id) || cloudByTitle.get(normalizeTitle(g.title));
+      return { ...g, cloudId: match ? match.id : null };
+    }),
+  };
+}
+
+module.exports = { parseSigl, parseProducts, fetchCatalog, getList, normalizeTitle, linkCatalogs };

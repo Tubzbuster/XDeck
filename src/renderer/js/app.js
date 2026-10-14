@@ -12,6 +12,7 @@ const state = {
   pc: [],
   cloudError: null,
   pcError: null,
+  cloudFilter: 'all', // 'all' | 'only' (cloud-only titles)
   imports: { sources: [], destinations: [], partitions: [] },
   compat: { community: {}, local: {} },
   importJob: null,   // { title, percent, copied, total, etaSeconds, phase }
@@ -53,7 +54,6 @@ const dirname = (p) => p.replace(/\/+$/, '').replace(/\/[^/]*$/, '');
 // ---------- library lookups ----------
 
 const catalogArt = () => new Map(state.pc.concat(state.cloud).map((g) => [upper(g.storeId), g.tile]));
-const cloudIds = () => new Set(state.cloud.map((g) => upper(g.storeId)));
 
 function destinationDirs() {
   return new Set(state.imports.destinations.map((d) => d.dir));
@@ -81,7 +81,7 @@ function pcStatus(game) {
   const importable = importableGames().find((g) => upper(g.storeId) === key);
   const community = state.compat.community[key] || null;
   const local = state.compat.local[key] || null;
-  return { installed, importable, cloud: cloudIds().has(key), community, local };
+  return { installed, importable, cloud: Boolean(game.cloudId), community, local };
 }
 
 function compatText({ community, local }) {
@@ -106,13 +106,19 @@ function gameTile(game, size = '') {
     size,
     color: game.color || (isCloud ? 'dark-green' : 'slate'),
     title: game.title,
-    subtitle: isCloud ? 'Xbox Cloud Gaming' : game.exists === false ? 'Executable missing' : compatText(pcStatus(game)),
-    badge: isCloud ? { text: 'cloud', cls: 'cloud' } : { text: 'on deck', cls: 'local' },
+    subtitle: isCloud ? cloudSubtitle(game) : game.exists === false ? 'Executable missing' : compatText(pcStatus(game)),
+    badge: isCloud ? { text: game.cloudOnly ? 'cloud only' : 'cloud', cls: 'cloud' } : { text: 'on deck', cls: 'local' },
     image: artUrl(art, size === 'big' ? 900 : 460),
     action: () => (isCloud ? launch(game) : localGameMenu(game)),
   };
   if (!tile.image) tile.glyph = game.title.slice(0, 1);
   return tile;
+}
+
+function cloudSubtitle(game) {
+  if (game.cloudOnly) return 'Cloud only: stream it';
+  const onDeckCopy = state.local.find((l) => l.exists !== false && [game.storeId, game.pcId].map(upper).includes(upper(l.storeId)));
+  return onDeckCopy ? 'Cloud · also on this Deck' : 'Cloud · also on PC Game Pass';
 }
 
 function pcTile(game) {
@@ -170,7 +176,7 @@ const PIVOTS = [
         : { size: 'big', color: 'green', title: 'Xbox Cloud Gaming', subtitle: 'Stream Game Pass games', glyph: '☁', action: () => api.openCloud() };
       const tiles = [
         hero,
-        { color: 'dark-green', title: 'cloud games', subtitle: `${state.cloud.length} titles`, glyph: '☁', action: () => goPivot('cloud') },
+        { color: 'dark-green', title: 'cloud games', subtitle: `${state.cloud.length} titles · ${state.cloud.filter((g) => g.cloudOnly).length} cloud only`, glyph: '☁', action: () => goPivot('cloud') },
         { color: 'blue', title: 'my games', subtitle: `${state.local.length} on this Deck`, glyph: '▦', action: () => goPivot('games') },
         { color: 'purple', title: 'pc game pass', subtitle: `${state.pc.length} titles`, glyph: '⊞', action: () => goPivot('pc') },
         { color: 'orange', title: 'import games', subtitle: `${importableGames().length} ready to import`, glyph: '⇣', action: () => goPivot('import') },
@@ -187,9 +193,24 @@ const PIVOTS = [
     tiles() {
       if (state.cloudError && !state.cloud.length) return [emptyTile(`Catalog unavailable (${state.cloudError}). Press Y to retry.`)];
       if (!state.cloud.length) return [emptyTile('Loading the Game Pass catalog…')];
+      const onlyCount = state.cloud.filter((g) => g.cloudOnly).length;
+      const showOnly = state.cloudFilter === 'only';
+      const games = showOnly ? state.cloud.filter((g) => g.cloudOnly) : state.cloud;
       return [
-        { size: 'tall', color: 'green', title: 'all cloud games', subtitle: 'Open xbox.com/play', glyph: '☁', action: () => api.openCloud() },
-        ...state.cloud.map((g) => gameTile(g)),
+        { color: 'green', title: 'xbox.com/play', subtitle: 'Browse in the cloud app', glyph: '☁', action: () => api.openCloud() },
+        {
+          color: showOnly ? 'orange' : 'slate',
+          title: showOnly ? `showing: cloud only (${onlyCount})` : `showing: all (${state.cloud.length})`,
+          subtitle: showOnly ? 'Press A to show everything' : 'Press A for cloud-only titles',
+          glyph: '⇄',
+          action: () => {
+            state.cloudFilter = showOnly ? 'all' : 'only';
+            state.focus.cloud = 1;
+            scrollOffsets.cloud = 0;
+            render();
+          },
+        },
+        ...games.map((g) => gameTile(g)),
       ];
     },
   },
@@ -516,7 +537,8 @@ function pcGameMenu(game) {
   const buttons = [];
   if (s.installed) buttons.push({ label: 'play on this deck', action: () => launch(s.installed) });
   if (s.importable) buttons.push({ label: `import from ${s.importable.sourceLabel}`, action: () => importFlow(s.importable) });
-  if (s.cloud) buttons.push({ label: 'play in the cloud', action: () => launch({ ...game, source: 'cloud' }) });
+  // Stream with the cloud edition's ID, which can differ from the PC edition's.
+  if (s.cloud) buttons.push({ label: 'play in the cloud', action: () => launch({ ...game, id: game.cloudId, storeId: game.cloudId, source: 'cloud' }) });
   buttons.push({ label: 'how to get it onto the deck', action: showInstallHelp });
   buttons.push({ label: 'close' });
   showModal(game.title, lines.join('\n'), buttons);
@@ -710,16 +732,22 @@ async function refreshImports(announce) {
 }
 
 async function refresh(force = false) {
-  const [local, cloud, pc, imports, compat] = await Promise.allSettled([
+  const [local, catalogs, imports, compat] = await Promise.allSettled([
     api.getLocalLibrary(),
-    api.getCloudLibrary({ force }),
-    api.getPcCatalog({ force }),
+    api.getCatalogs({ force }),
     api.discoverImports(),
     api.compat(),
   ]);
   state.local = local.status === 'fulfilled' ? local.value : [];
-  if (cloud.status === 'fulfilled') { state.cloud = cloud.value; state.cloudError = null; } else state.cloudError = 'offline';
-  if (pc.status === 'fulfilled') { state.pc = pc.value; state.pcError = null; } else state.pcError = 'offline';
+  if (catalogs.status === 'fulfilled') {
+    const c = catalogs.value;
+    if (c.cloud.length || !c.cloudError) state.cloud = c.cloud;
+    if (c.pc.length || !c.pcError) state.pc = c.pc;
+    state.cloudError = c.cloudError;
+    state.pcError = c.pcError;
+  } else {
+    state.cloudError = state.pcError = 'offline';
+  }
   if (imports.status === 'fulfilled') state.imports = imports.value;
   if (compat.status === 'fulfilled') state.compat = compat.value;
   render();

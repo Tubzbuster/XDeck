@@ -17,10 +17,13 @@ export const mockApi = {
   getLocalLibrary: async () => [
     { ...sample('Indie Racer', 'blue'), source: 'xboxgames', storeId: 'MOCK3', dir: '/home/deck/XboxGames/Indie Racer', exe: '/home/deck/XboxGames/Indie Racer/Content/racer.exe', exists: true },
   ],
-  getCloudLibrary: async () => ['Starfield Expedition', 'Forza Lap', 'Halo Ring', 'Sea of Pirates', 'Grounded Yard']
-    .map((t, i) => ({ ...sample(t, ['green', 'blue', 'purple', 'orange', 'slate'][i % 5]), storeId: `MOCK${i}`, source: 'cloud' })),
-  getPcCatalog: async () => ['Sample Quest', 'Forza Lap', 'Halo Ring', 'Indie Racer', 'Grounded Yard', 'Hi-Fi Beat', 'Psychonauts 2', 'Pentiment', 'Ori Forest', 'Gears Tactics']
-    .map((t, i) => ({ ...sample(t), storeId: `MOCK${i}`, source: 'pc' })),
+  getCatalogs: async () => {
+    const cloud = ['Starfield Expedition', 'Forza Lap', 'Halo Ring', 'Sea of Pirates', 'Grounded Yard', 'Banjo Classic', 'Retro Racer 360']
+      .map((t, i) => ({ ...sample(t, ['green', 'blue', 'purple', 'orange', 'slate'][i % 5]), storeId: `MOCK${i}`, source: 'cloud', cloudOnly: i >= 5, pcId: i < 5 ? `MOCK${i}` : null }));
+    const pc = ['Sample Quest', 'Forza Lap', 'Halo Ring', 'Indie Racer', 'Grounded Yard', 'Hi-Fi Beat', 'Psychonauts 2', 'Pentiment', 'Ori Forest', 'Gears Tactics']
+      .map((t, i) => ({ ...sample(t), storeId: `MOCK${i}`, source: 'pc', cloudId: [1, 2, 4].includes(i) ? `MOCK${i}` : null }));
+    return { cloud, pc, cloudError: null, pcError: null };
+  },
   launch: async (game) => ({ runner: game.source === 'cloud' ? 'cloud' : 'umu' }),
   stop: async () => true,
   gameSettings: async () => ({}),

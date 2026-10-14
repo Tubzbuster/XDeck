@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseSigl, parseProducts, getList } = require('../src/core/catalog');
+const { parseSigl, parseProducts, getList, normalizeTitle, linkCatalogs } = require('../src/core/catalog');
 const { launchUrl, isAllowedUrl } = require('../src/core/cloud');
 const { deepMerge } = require('../src/core/config');
 
@@ -65,4 +65,27 @@ test('only allows Microsoft hosts in the cloud window', () => {
 test('deepMerge overrides scalars and arrays, merges objects', () => {
   const merged = deepMerge({ a: 1, b: { c: 2, d: [1] } }, { b: { d: [2, 3] }, e: true });
   assert.deepEqual(merged, { a: 1, b: { c: 2, d: [2, 3] }, e: true });
+});
+
+test('normalizes edition suffixes when comparing titles', () => {
+  assert.equal(normalizeTitle('A Plague Tale: Requiem - Windows'), 'a plague tale requiem');
+  assert.equal(normalizeTitle('Battlefield\u2122 2042 Xbox Series X|S'), 'battlefield 2042');
+  assert.equal(normalizeTitle('Anno 1800\u2122 Console Edition'), 'anno 1800');
+  assert.equal(normalizeTitle('Forza Horizon 5 (PC)'), 'forza horizon 5');
+});
+
+test('links cloud and PC catalogs and finds cloud-only titles', () => {
+  const cloud = [
+    { id: 'C1', title: 'Shared Game' },
+    { id: 'C2', title: 'Plague - Console Edition' },
+    { id: 'C3', title: 'Banjo Classic' },
+  ];
+  const pc = [
+    { id: 'C1', title: 'Shared Game' },
+    { id: 'P2', title: 'Plague - Windows' },
+    { id: 'P4', title: 'PC Only Game' },
+  ];
+  const linked = linkCatalogs(cloud, pc);
+  assert.deepEqual(linked.cloud.map((g) => [g.id, g.pcId, g.cloudOnly]), [['C1', 'C1', false], ['C2', 'P2', false], ['C3', null, true]]);
+  assert.deepEqual(linked.pc.map((g) => [g.id, g.cloudId]), [['C1', 'C1'], ['P2', 'C2'], ['P4', null]]);
 });

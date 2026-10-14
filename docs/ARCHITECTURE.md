@@ -51,6 +51,10 @@ the game kills the whole group (wineserver included).
 in batches of 20. Each list is cached in `~/.cache/xdeck/catalog-<list>.json`,
 and the cache is used when offline. Two lists are used: `catalog.cloudListId`
 (cloud "All games") and `catalog.pcListId` (PC Game Pass "All PC Games").
+`linkCatalogs()` cross-links them by product ID, falling back to the title
+with edition suffixes stripped, because console and PC editions often have
+different IDs. Cloud entries get `pcId`/`cloudOnly`, and PC entries get
+`cloudId`, the ID used when a PC title is streamed.
 
 **Import.** Windows has to install PC Game Pass games, because downloads are
 encrypted and only Gaming Services can decrypt them. With "advanced management

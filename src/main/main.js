@@ -5,7 +5,7 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain, session, shell, dialog } = require('electron');
 const { loadConfig } = require('../core/config');
 const { scanLibrary } = require('../core/library');
-const { getList } = require('../core/catalog');
+const { getList, linkCatalogs } = require('../core/catalog');
 const { launchUrl, isAllowedUrl } = require('../core/cloud');
 const { Launcher } = require('../core/launcher');
 const sources = require('../core/sources');
@@ -157,10 +157,20 @@ function registerIpc() {
     cacheHours: config.catalog.cacheHours,
     limit,
   });
-  ipcMain.handle('library:cloud', (_e, { force } = {}) =>
-    (config.cloud.enabled ? getList(config.catalog.cloudListId, catalogOpts(400), { force }) : []));
-  ipcMain.handle('library:pc', (_e, { force } = {}) =>
-    getList(config.catalog.pcListId, catalogOpts(config.catalog.pcLimit), { force }));
+  // Both catalogs, cross-linked so cloud-only titles and cloud editions of
+  // PC games are known. A failed list comes back empty with an error flag.
+  ipcMain.handle('library:catalogs', async (_e, { force } = {}) => {
+    const [cloud, pc] = await Promise.allSettled([
+      config.cloud.enabled ? getList(config.catalog.cloudListId, catalogOpts(config.catalog.cloudLimit), { force }) : [],
+      getList(config.catalog.pcListId, catalogOpts(config.catalog.pcLimit), { force }),
+    ]);
+    const linked = linkCatalogs(cloud.value || [], pc.value || []);
+    return {
+      ...linked,
+      cloudError: cloud.status === 'rejected' ? 'offline' : null,
+      pcError: pc.status === 'rejected' ? 'offline' : null,
+    };
+  });
 
   ipcMain.handle('game:launch', (_e, game) => {
     if (game.source === 'cloud') {

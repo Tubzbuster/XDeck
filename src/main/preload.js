@@ -11,8 +11,7 @@ const listen = (channel) => (cb) => {
 contextBridge.exposeInMainWorld('xdeck', {
   getConfig: () => ipcRenderer.invoke('config:get'),
   getLocalLibrary: () => ipcRenderer.invoke('library:local'),
-  getCloudLibrary: (opts) => ipcRenderer.invoke('library:cloud', opts),
-  getPcCatalog: (opts) => ipcRenderer.invoke('library:pc', opts),
+  getCatalogs: (opts) => ipcRenderer.invoke('library:catalogs', opts),
   launch: (game) => ipcRenderer.invoke('game:launch', game),
   stop: () => ipcRenderer.invoke('game:stop'),
   gameSettings: (id) => ipcRenderer.invoke('game:settings', id),

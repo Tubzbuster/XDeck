@@ -8,7 +8,7 @@
   \/   \/___/ \____/ \____/\_| \_/
 ================================================================================
   Platform ..... Steam Deck (SteamOS 3.x, Gaming Mode)
-  Version ...... 0.2.0 (pre-alpha, extremely work in progress)
+  Version ...... 0.2.1 (pre-alpha, extremely work in progress)
   Author ....... tubzbuster & XDeck contributors
   License ...... MIT (see LICENSE and DISCLAIMER.md)
   Updated ...... 2026-10-14
@@ -40,6 +40,11 @@
 [XD00]                         VERSION HISTORY
 ================================================================================
 ```
+
+**v0.2.1 (2026-10-14)**: Cloud streaming stays the way to play cloud-only
+titles: they're now labelled `CLOUD ONLY`, with a filter in "cloud games".
+The full cloud catalog loads (it was capped at 400). PC titles stream using
+their cloud edition's ID.
 
 **v0.2.0 (2026-10-14)**: PC Game Pass catalog with "how can I play this"
 badges. Import XboxGames folders from USB drives, SD cards, a dual-boot Windows
@@ -91,6 +96,7 @@ the real app on Linux is still the long-term dream; see
   Xbox 360-style dashboard + controller nav  [WORKING]
   Game Pass cloud catalog with box art       [WORKING]
   Xbox Cloud Gaming (stream any cloud title) [WORKING]*   *needs Ultimate
+  Cloud-only titles labelled + filterable    [WORKING]
   PC Game Pass catalog + playability badges  [WORKING]
   Import games from USB / SD / Windows / NAS [WORKING]    resumable
   Local games via Proton / umu-launcher      [PARTIAL]    some titles only
@@ -179,6 +185,12 @@ everything after it.
   it stopped.
 - Refuses folders that aren't Xbox app installs, and protected `WindowsApps`
   installs.
+
+**Cloud-only titles** (about a quarter of the cloud catalog, including many
+Xbox 360 and console-edition games) have no PC version to import. They're
+still played the original way, streamed through Xbox Cloud Gaming. In
+"cloud games" they carry a `CLOUD ONLY` badge, and the second tile switches
+between all cloud titles and cloud-only ones.
 
 **The "pc game pass" section** lists the whole PC catalog. Each tile has a
 badge: `ON DECK`, `READY TO IMPORT`, `CLOUD` (stream it instead) or

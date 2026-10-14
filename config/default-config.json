@@ -12,7 +12,8 @@
   "catalog": {
     "cloudListId": "29a81209-df6f-41fd-a528-2ae6b91f719c",
     "pcListId": "fdd9e2a7-0fee-49f6-ad69-4354098401ff",
-    "pcLimit": 600,
+    "cloudLimit": 1000,
+    "pcLimit": 1000,
     "cacheHours": 12
   },
 

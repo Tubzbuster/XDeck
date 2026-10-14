@@ -354,7 +354,8 @@ function runSingleGame(id) {
 // focuses the existing window instead of starting another full app.
 const GOT_LOCK = HEADLESS ? true : app.requestSingleInstanceLock();
 if (!GOT_LOCK) {
-  app.quit();
+  // exit, not quit: nothing is running yet, and quit can be deferred.
+  app.exit(0);
 } else if (!HEADLESS) {
   app.on('second-instance', () => {
     if (!mainWindow) return;
